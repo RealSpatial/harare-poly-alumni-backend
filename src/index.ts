@@ -782,7 +782,8 @@ app.post('/api/auth/send-reset-email', async (req, res) => {
 
         // Send the Email
         // Note: Make sure the URL matches where your frontend is running (usually port 3000 or 3001)
-        const resetLink = `http://localhost:3001/reset-password?token=${resetToken}&email=${email}`;
+        const frontendUrl = process.env.FRONTEND_URL || 'https://harare-poly-alumni.vercel.app';
+        const resetLink = `${frontendUrl}/reset-password?token=${resetToken}&email=${email}`;
         
         const mailOptions = {
             from: '"Harare Poly Alumni Support" <your-email@gmail.com>',
