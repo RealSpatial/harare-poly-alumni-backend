@@ -1115,6 +1115,113 @@ app.get('/api/public/trends', async (req, res) => {
     }
 });
 
+// ==========================================
+// 🛍️ HARARE POLYTECHNIC MARKETPLACE ROUTES
+// ==========================================
+
+// 1. Public: Fetch all Marketplace items (or only featured ones with ?featured=true)
+app.get('/api/marketplace', async (req, res) => {
+    try {
+        const featuredOnly = req.query.featured === 'true';
+        const query = featuredOnly
+            ? "SELECT * FROM products_services WHERE is_featured = true ORDER BY created_at DESC LIMIT 3"
+            : "SELECT * FROM products_services ORDER BY is_featured DESC, created_at DESC";
+
+        const result = await pool.query(query);
+        res.json(result.rows);
+    } catch (err: any) {
+        console.error("🔴 Error fetching marketplace items:", err.message);
+        res.status(500).json({ error: "Failed to fetch marketplace items" });
+    }
+});
+
+// 2. PRO: Add a new Product or Service
+app.post('/api/pro/marketplace', verifyToken, async (req: any, res) => {
+    try {
+        if (req.user.role !== 'pro' && req.user.role !== 'admin') {
+            return res.status(403).json({ error: "Unauthorized. PRO access required." });
+        }
+
+        const {
+            company_name,
+            title,
+            category,
+            description,
+            price,
+            image_url,
+            contact_phone,
+            contact_email,
+            is_featured
+        } = req.body;
+
+        if (!company_name || !title) {
+            return res.status(400).json({ error: "Company name and product/service title are required." });
+        }
+
+        const result = await pool.query(
+            `INSERT INTO products_services 
+             (company_name, title, category, description, price, image_url, contact_phone, contact_email, is_featured) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+             RETURNING *`,
+            [
+                company_name,
+                title,
+                category || 'Product',
+                description || '',
+                price || 'Request Quote',
+                image_url || '',
+                contact_phone || '',
+                contact_email || '',
+                Boolean(is_featured)
+            ]
+        );
+
+        res.status(201).json(result.rows[0]);
+    } catch (err: any) {
+        console.error("🔴 Error adding marketplace item:", err.message);
+        res.status(500).json({ error: "Failed to add marketplace item" });
+    }
+});
+
+// 3. PRO: Toggle "Featured on Home Page"
+app.patch('/api/pro/marketplace/:id/feature', verifyToken, async (req: any, res) => {
+    try {
+        if (req.user.role !== 'pro' && req.user.role !== 'admin') {
+            return res.status(403).json({ error: "Unauthorized. PRO access required." });
+        }
+
+        const { is_featured } = req.body;
+        const result = await pool.query(
+            "UPDATE products_services SET is_featured = $1 WHERE id = $2 RETURNING *",
+            [Boolean(is_featured), req.params.id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Item not found" });
+        }
+
+        res.json(result.rows[0]);
+    } catch (err: any) {
+        console.error("🔴 Error toggling featured status:", err.message);
+        res.status(500).json({ error: "Failed to update featured status" });
+    }
+});
+
+// 4. PRO: Delete a Marketplace listing
+app.delete('/api/pro/marketplace/:id', verifyToken, async (req: any, res) => {
+    try {
+        if (req.user.role !== 'pro' && req.user.role !== 'admin') {
+            return res.status(403).json({ error: "Unauthorized. PRO access required." });
+        }
+
+        await pool.query("DELETE FROM products_services WHERE id = $1", [req.params.id]);
+        res.json({ success: true, message: "Marketplace item deleted" });
+    } catch (err: any) {
+        console.error("🔴 Error deleting marketplace item:", err.message);
+        res.status(500).json({ error: "Failed to delete marketplace item" });
+    }
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
